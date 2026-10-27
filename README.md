@@ -65,7 +65,10 @@ This repository ships two skills for **Cortex Code (CoCo Desktop / CLI)** in
 | `postgis-playground-region` | Switches the sample region from Menlo Park to your city: edits `config/region.json`, downloads the OpenStreetMap data, and redeploys. |
 
 1. Clone this repository and open the folder in CoCo Desktop (project skills are picked up automatically;
-   in the CoCo CLI use `/skill add .snowflake/cortex/skills/postgis-playground-setup`).
+   in the CoCo CLI use `/skill add .snowflake/cortex/skills/postgis-playground-setup`):
+   ```bash
+   git clone https://github.com/BlueAppWorks/postgis-playground-on-snowflake.git
+   ```
 2. Ask: **"Set up and deploy this app."**
 3. Optional: **"Change the sample region to my city: …"**
 
