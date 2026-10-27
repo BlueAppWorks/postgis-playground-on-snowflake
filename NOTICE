@@ -1,0 +1,11 @@
+PostGIS Playground
+Copyright 2026 The PostGIS Playground authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party data
+----------------
+data/seed/sample.json contains data from OpenStreetMap.
+© OpenStreetMap contributors. Available under the Open Database License (ODbL) 1.0:
+https://www.openstreetmap.org/copyright
+The ODbL applies to that data, not to the source code of this project.

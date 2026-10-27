@@ -1,0 +1,57 @@
+# Snowflake App Runtime manifest — deploy with `snow app deploy` (or ask Cortex Code: "Deploy this app").
+# Fill in the four <...> values. docs/03-deploy.md explains each field.
+version: 2
+
+name: POSTGIS_PLAYGROUND
+database: <APPS_DATABASE>            # e.g. SNOWFLAKE_APPS (shared) or USER$ (your personal database)
+schema: PUBLIC
+query_warehouse: <WAREHOUSE>         # required by App Runtime; this app queries Postgres, not the warehouse
+
+label: PostGIS Playground
+description: Learn PostGIS step by step on Snowflake Postgres — every map change is a SQL query you can read.
+icon: src/app/icon.svg
+
+auto_suspend_secs: 3600              # suspend after an hour without traffic
+
+# Outbound access: Snowflake Postgres (5432) and the OpenStreetMap APIs. Created by snowflake/setup.sql.
+external_access_integrations:
+  - POSTGIS_PLAYGROUND_EAI
+
+# Mounted at /secrets/pg/username and /secrets/pg/password (read by src/server/db.ts).
+secrets:
+  - name: pg
+    secret: POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_APP_CREDENTIALS
+
+environment_variables:
+  - name: PGHOST
+    value: "<instance-host>.postgres.snowflake.app"
+  - name: PGDATABASE
+    value: "postgis_playground"
+  - name: OSM_USER_AGENT
+    value: "PostGIS-Playground/1.0 (<your contact email or URL>)"
+  - name: NEXT_TELEMETRY_DISABLED
+    value: "1"
+  # Optional:
+  # - name: BASEMAP_STYLE_URL       # "none" draws the whole map from PostGIS tiles
+  #   value: "none"
+  # - name: ALLOW_SQL_CONSOLE       # "false" hides the Try-it SQL editor
+  #   value: "false"
+
+install:
+  commands:
+    - [npm, ci]
+build:
+  commands:
+    - [npm, run, build]
+run:
+  command: [npm, start]              # next start on $HOSTNAME:$PORT
+
+ignore:
+  - node_modules
+  - .next
+  - .env*
+  - .git
+  - snowflake.log
+  - docs                             # guides and screenshots are not needed at runtime
+  - .snowflake                       # Cortex Code skills
+  - config/examples

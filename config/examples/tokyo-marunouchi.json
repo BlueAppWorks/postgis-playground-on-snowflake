@@ -1,0 +1,11 @@
+{
+  "name": "Tokyo Marunouchi",
+  "anchor": { "name": "Tokyo Station", "lng": 139.7671, "lat": 35.6812 },
+  "radiusMeters": 800,
+  "places": [
+    { "name": "Tokyo Station", "kind": "station", "query": "Tokyo Station, Chiyoda, Tokyo" },
+    { "name": "Kitanomaru Park", "kind": "favorite", "query": "Kitanomaru Park, Chiyoda, Tokyo" },
+    { "name": "Hibiya Park", "kind": "favorite", "query": "Hibiya Park, Tokyo" },
+    { "name": "Nihonbashi", "kind": "work", "query": "Nihonbashi Bridge, Tokyo" }
+  ]
+}

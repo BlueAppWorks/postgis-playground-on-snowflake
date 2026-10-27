@@ -1,0 +1,13 @@
+{
+  "$comment": "The sample region. Edit, then run `npm run seed:build` to download its OpenStreetMap data into data/seed/sample.json. See .snowflake/cortex/skills/postgis-playground-region/SKILL.md.",
+  "name": "Menlo Park",
+  "anchor": { "name": "Snowflake Menlo Park", "lng": -122.1762, "lat": 37.485 },
+  "radiusMeters": 1000,
+  "places": [
+    { "name": "Snowflake Menlo Park", "kind": "work", "query": "135 Constitution Drive, Menlo Park, CA" },
+    { "name": "Bedwell Bayfront Park", "kind": "favorite", "query": "Bedwell Bayfront Park, Menlo Park, CA" },
+    { "name": "Menlo Park Caltrain", "kind": "station", "query": "Menlo Park station, Merrill Street, Menlo Park, CA" },
+    { "name": "Menlo Park Library", "kind": "favorite", "query": "Menlo Park Library, Menlo Park, California" },
+    { "name": "Flood Park", "kind": "home", "query": "Flood County Park" }
+  ]
+}
