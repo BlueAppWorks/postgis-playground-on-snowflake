@@ -1,0 +1,4 @@
+# Keep LF everywhere: the app is built on Linux (App Runtime) and learners clone on any OS.
+* text=auto eol=lf
+*.png binary
+*.json text eol=lf
