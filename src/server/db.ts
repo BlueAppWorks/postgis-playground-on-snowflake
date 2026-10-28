@@ -4,10 +4,10 @@ import { Pool, type PoolClient, type FieldDef } from "pg";
 import { ewkbToGeoJSON, summarizeGeometry, type Geometry } from "./ewkb";
 import type { TraceEntry } from "@/lessons/types";
 
-// On App Runtime, the password secret from app.yml is mounted as files:
-//   /secrets/<mount name>/username and /secrets/<mount name>/password
-// Locally, PGUSER / PGPASSWORD environment variables are used instead.
-const SECRET_DIR = process.env.PG_SECRET_DIR ?? "/secrets/pg";
+// On App Runtime, the password secret from app.yml (secrets: - name: PG) is mounted as files:
+//   /secrets/PG/username and /secrets/PG/password
+// Locally, PGUSER / PGPASSWORD environment variables are used instead. Never put the password in app.yml.
+const SECRET_DIR = process.env.PG_SECRET_DIR ?? "/secrets/PG";
 
 function readSecret(file: string, envName: string): string | undefined {
   const path = `${SECRET_DIR}/${file}`;

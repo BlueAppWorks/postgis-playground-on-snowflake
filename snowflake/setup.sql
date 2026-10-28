@@ -3,7 +3,8 @@
 -- Run in a Snowsight worksheet (or `snow sql -f snowflake/setup.sql`) as ACCOUNTADMIN,
 -- one section at a time. The guide explains every statement:
 --   docs/01-snowflake-postgres.md   (sections 1–3)
---   docs/02-external-access.md      (sections 4–6)
+--   docs/02-external-access.md      (sections 4–7)
+--   docs/00-before-you-start.md     (checklist, and how to verify everything before deploying)
 -- Replace every <...> placeholder first.
 -- ════════════════════════════════════════════════════════════════════════════
 
@@ -32,6 +33,7 @@ CREATE NETWORK POLICY IF NOT EXISTS POSTGIS_PLAYGROUND_PG_POLICY
   COMMENT = 'Who may connect to the PostGIS Playground Postgres instance';
 
 -- ── 2. The Postgres instance ───────────────────────────────────────────────
+-- Use a new instance just for this app: changing the policy or passwords of a shared one breaks other apps.
 -- BURST_S is the smallest size and is plenty for the lessons.
 -- The result row shows the host and the passwords for "snowflake_admin" and "application".
 -- They are shown ONLY ONCE — copy them now.
@@ -56,6 +58,9 @@ CREATE NETWORK RULE IF NOT EXISTS PG_EGRESS_RULE
   TYPE = HOST_PORT
   MODE = EGRESS
   VALUE_LIST = ('<instance-host>.postgres.snowflake.app:5432');   -- the "host" from step 2
+-- If the host here differs from the instance's host, the app fails with "getaddrinfo ENOTFOUND".
+-- '*.postgres.snowflake.app:5432' would survive a recreated instance, but allows every Postgres
+-- instance on Snowflake (any account), so the exact host is the default.
 
 CREATE NETWORK RULE IF NOT EXISTS OSM_EGRESS_RULE
   TYPE = HOST_PORT
@@ -81,11 +86,25 @@ CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS POSTGIS_PLAYGROUND_EAI
   ENABLED = TRUE
   COMMENT = 'PostGIS Playground: Snowflake Postgres + OpenStreetMap APIs';
 
--- If you deploy with a role other than ACCOUNTADMIN, let it use the integration and the secret:
--- GRANT USAGE ON INTEGRATION POSTGIS_PLAYGROUND_EAI TO ROLE <deploy_role>;
--- GRANT USAGE ON DATABASE POSTGIS_PLAYGROUND_ADMIN TO ROLE <deploy_role>;
--- GRANT USAGE ON SCHEMA POSTGIS_PLAYGROUND_ADMIN.CONFIG TO ROLE <deploy_role>;
--- GRANT READ, USAGE ON SECRET POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_APP_CREDENTIALS TO ROLE <deploy_role>;
+-- ── 7. Grants for the deploy role ──────────────────────────────────────────
+-- Skip if you deploy as ACCOUNTADMIN. The deploy role is the one your Snowflake CLI connection uses
+-- (`snow sql -q "SELECT CURRENT_ROLE()"`), which may differ from your Snowsight role.
+-- Without these, the deploy fails with "Secret ... does not exist or not authorized".
+GRANT USAGE ON INTEGRATION POSTGIS_PLAYGROUND_EAI TO ROLE <deploy_role>;
+GRANT USAGE ON DATABASE POSTGIS_PLAYGROUND_ADMIN TO ROLE <deploy_role>;
+GRANT USAGE ON SCHEMA POSTGIS_PLAYGROUND_ADMIN.CONFIG TO ROLE <deploy_role>;
+GRANT READ, USAGE ON SECRET POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_APP_CREDENTIALS TO ROLE <deploy_role>;
+-- Where the app is created (not needed for your personal USER$ database):
+GRANT USAGE ON DATABASE <APPS_DATABASE> TO ROLE <deploy_role>;
+GRANT USAGE, CREATE APPLICATION SERVICE, CREATE ARTIFACT REPOSITORY, CREATE STAGE
+  ON SCHEMA <APPS_DATABASE>.PUBLIC TO ROLE <deploy_role>;
+GRANT USAGE ON WAREHOUSE <WAREHOUSE> TO ROLE <deploy_role>;
+
+-- ── Re-running ─────────────────────────────────────────────────────────────
+-- IF NOT EXISTS keeps an existing object unchanged. After recreating the instance (new host) or
+-- resetting a password, update the objects explicitly:
+-- ALTER NETWORK RULE PG_EGRESS_RULE SET VALUE_LIST = ('<new-host>:5432');
+-- ALTER SECRET PG_APP_CREDENTIALS SET PASSWORD = '<new application password>';
 
 -- ── Maintenance ────────────────────────────────────────────────────────────
 -- The egress IP ranges change over time (see the "expires" column). Update the rule in place —

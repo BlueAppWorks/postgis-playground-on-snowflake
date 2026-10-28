@@ -24,6 +24,8 @@ export async function GET() {
     });
     return NextResponse.json(status);
   } catch (e) {
+    // Shows up in `snow app events` / SYSTEM$GET_APPLICATION_SERVICE_LOGS — the first place to look.
+    console.error("Postgres not reachable:", (e as Error).message);
     return NextResponse.json({ connected: false, ready: false, error: (e as Error).message });
   }
 }

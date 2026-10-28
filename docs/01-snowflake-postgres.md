@@ -58,6 +58,9 @@ CREATE NETWORK POLICY IF NOT EXISTS POSTGIS_PLAYGROUND_PG_POLICY
 
 ## 1.2 Create the instance
 
+Create a **new instance just for this app**, even if the account already has one. Reusing another app's instance
+means changing its network policy or resetting its passwords, which breaks that app.
+
 ```sql
 CREATE POSTGRES INSTANCE IF NOT EXISTS POSTGIS_PLAYGROUND_PG
   COMPUTE_FAMILY = 'BURST_S'          -- smallest size; fine for learning
@@ -97,7 +100,11 @@ psql "host=<host> port=5432 dbname=postgres user=snowflake_admin sslmode=require
 
 If the connection hangs or is refused, your IP is not in `PG_INGRESS_RULE` — see Troubleshooting.
 
-No psql? From the project folder, after `npm install`, the same setup runs with Node:
+Run this step from your own machine. A Snowflake stored procedure or notebook cannot do it for you:
+they cannot reach the instance without extra network setup.
+
+No psql? From the project folder, after `npm install`, the same setup runs with Node
+(on Windows PowerShell, use `npm.cmd install` if `npm` is blocked by the execution policy):
 
 ```bash
 PGHOST=<host> PG_ADMIN_PASSWORD='<snowflake_admin password>' node scripts/postgres-setup.mjs
@@ -156,6 +163,7 @@ Next: [2. External access](02-external-access.md).
 | Symptom | Cause and fix |
 |---|---|
 | `psql` hangs, then times out | No network policy, or your IP is not in it. `DESCRIBE POSTGRES INSTANCE POSTGIS_PLAYGROUND_PG;` shows the attached policy. Add your IP with `ALTER NETWORK RULE`. |
+| `Snowflake authentication failed ... user: snowflake_admin` | Wrong admin password — for example an instance created earlier by someone else. Use your own instance (1.2). |
 | `password authentication failed` | Wrong role or password. Passwords are per role (`snowflake_admin` vs `application`). Reset with `ALTER POSTGRES INSTANCE ... RESET ACCESS FOR 'application'` (this issues a new password — update the Snowflake secret afterwards). |
 | `required extension "postgis_raster" is not installed` | Use `CREATE EXTENSION h3_postgis CASCADE;`. |
 | `must be owner of extension ...` when the app runs Lesson 8 or 10 | The extension was not created by the admin. Run `postgres_setup.sql` as `snowflake_admin`. |

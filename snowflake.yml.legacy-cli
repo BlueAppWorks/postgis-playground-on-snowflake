@@ -1,0 +1,31 @@
+# Only for Snowflake CLI older than 3.26, which cannot read deployment settings from app.yml.
+# Prefer upgrading the CLI. If you cannot:
+#   1. copy this file to snowflake.yml and fill in the same <...> values as in app.yml
+#   2. run `snow app deploy`
+# The CLI then takes the target from this file; install/build/run, secrets and environment
+# variables still come from app.yml. Delete snowflake.yml again after upgrading the CLI.
+definition_version: 2
+entities:
+  postgis_playground:
+    type: snowflake-app
+    identifier:
+      database: <APPS_DATABASE>
+      schema: PUBLIC
+      name: POSTGIS_PLAYGROUND
+    query_warehouse: <WAREHOUSE>
+    service_eai:
+      name: POSTGIS_PLAYGROUND_EAI
+    meta:
+      title: PostGIS Playground
+    # Listed explicitly so that a local node_modules/ (hundreds of MB) is not uploaded.
+    artifacts:
+      - { src: app.yml, dest: app.yml }
+      - { src: package.json, dest: package.json }
+      - { src: package-lock.json, dest: package-lock.json }
+      - { src: tsconfig.json, dest: tsconfig.json }
+      - { src: next.config.ts, dest: next.config.ts }
+      - { src: src, dest: src }
+      - { src: sql, dest: sql }
+      - { src: data, dest: data }
+      - { src: config, dest: config }
+      - { src: scripts, dest: scripts }

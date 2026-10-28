@@ -1,5 +1,11 @@
-# Snowflake App Runtime manifest — deploy with `snow app deploy` (or ask Cortex Code: "Deploy this app").
-# Fill in the four <...> values. docs/03-deploy.md explains each field.
+# Snowflake App Runtime manifest (app.yml version 2) — deploy with `snow app deploy`.
+#
+# Coding agents (Cortex Code etc.): follow .snowflake/cortex/skills/postgis-playground-setup/SKILL.md.
+# It lists the Snowflake objects that must exist first (docs/00-before-you-start.md) and the known pitfalls.
+#
+# Fill in the four <...> values; docs/03-deploy.md explains each field.
+# Needs Snowflake CLI 3.26 or later (`snow app deploy --help` lists `--target`).
+# Older CLI: see docs/03-deploy.md → "Older Snowflake CLI" (snowflake.yml.legacy-cli).
 version: 2
 
 name: POSTGIS_PLAYGROUND
@@ -17,11 +23,14 @@ auto_suspend_secs: 3600              # suspend after an hour without traffic
 external_access_integrations:
   - POSTGIS_PLAYGROUND_EAI
 
-# Mounted at /secrets/pg/username and /secrets/pg/password (read by src/server/db.ts).
+# Mounted at /secrets/PG/username and /secrets/PG/password (read by src/server/db.ts).
+# The mount name must be UPPER_CASE letters, digits and underscores.
 secrets:
-  - name: pg
+  - name: PG
     secret: POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_APP_CREDENTIALS
 
+# Non-secret settings only. Never add PGPASSWORD here — the password comes from the secret above.
+# PORT and HOSTNAME are set by App Runtime and must not be defined here.
 environment_variables:
   - name: PGHOST
     value: "<instance-host>.postgres.snowflake.app"
@@ -39,12 +48,13 @@ environment_variables:
 
 install:
   commands:
-    - [npm, ci]
+    - [npm, ci, --include=dev]       # the build needs TypeScript and the type packages
 build:
   commands:
-    - [npm, run, build]
+    - [npm, run, build]              # next build + scripts/prepare-standalone.mjs
+    - [rm, -rf, node_modules]        # the standalone server carries its own dependencies
 run:
-  command: [npm, start]              # next start on $HOSTNAME:$PORT
+  command: [node, .next/standalone/server.js]   # listens on $HOSTNAME:$PORT
 
 ignore:
   - node_modules

@@ -53,7 +53,7 @@ Keep the existing structure:
 ## 3. Download the data
 
 ```bash
-npm install            # if node_modules is missing
+npm install            # if node_modules is missing (Windows PowerShell: npm.cmd install / npm.cmd run seed:build)
 npm run seed:build     # Nominatim once per place + one Overpass download
 ```
 

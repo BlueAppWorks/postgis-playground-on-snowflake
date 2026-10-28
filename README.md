@@ -54,6 +54,12 @@ Browser (MapLibre GL)  ──HTTPS──▶  Next.js on Snowflake App Runtime  �
 - **Safe by default.** Values from the page are always bind parameters; the app connects as Postgres's
   non-admin `application` role.
 
+## Before you start
+
+You need a paid Snowflake account with Snowflake Postgres and App Runtime, ACCOUNTADMIN (once, for the setup),
+Snowflake CLI 3.26+, and Node.js 22+. [docs/00-before-you-start.md](docs/00-before-you-start.md) is the checklist:
+which Snowflake objects to create in which order, what to write down, and how to verify them before deploying.
+
 ## Get started with Cortex Code (recommended)
 
 This repository ships two skills for **Cortex Code (CoCo Desktop / CLI)** in
@@ -64,18 +70,20 @@ This repository ships two skills for **Cortex Code (CoCo Desktop / CLI)** in
 | `postgis-playground-setup` | Creates (or reuses) the Snowflake Postgres instance, sets up its network policy, installs PostGIS / pgRouting / H3, creates the secret and external access integration, fills in `app.yml`, and deploys. |
 | `postgis-playground-region` | Switches the sample region from Menlo Park to your city: edits `config/region.json`, downloads the OpenStreetMap data, and redeploys. |
 
-1. Clone this repository and open the folder in CoCo Desktop (project skills are picked up automatically;
-   in the CoCo CLI use `/skill add .snowflake/cortex/skills/postgis-playground-setup`):
+1. Clone this repository:
    ```bash
    git clone https://github.com/BlueAppWorks/postgis-playground-on-snowflake.git
    ```
-2. Ask: **"Set up and deploy this app."**
-3. Optional: **"Change the sample region to my city: …"**
+2. Open **the cloned `postgis-playground-on-snowflake` folder itself** in CoCo Desktop — not its parent folder.
+   Project skills are found only in the workspace folder. (CoCo CLI: start it inside the folder.)
+3. Ask: **"Set up and deploy this app with the postgis-playground-setup skill."**
+4. Optional: **"Change the sample region to my city: …"**
 
 CoCo asks before it creates anything that costs money, and never writes passwords into files.
 
 ## Get started by hand
 
+0. **Checklist** — what to prepare: [docs/00-before-you-start.md](docs/00-before-you-start.md)
 1. **Snowflake Postgres** — create an instance and allow connections: [docs/01-snowflake-postgres.md](docs/01-snowflake-postgres.md)
 2. **External access** — let the app reach Postgres and OpenStreetMap: [docs/02-external-access.md](docs/02-external-access.md)
 3. **Deploy** — fill in `app.yml` and run `snow app deploy`: [docs/03-deploy.md](docs/03-deploy.md)

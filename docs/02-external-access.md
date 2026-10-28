@@ -15,14 +15,14 @@ You grant this with three Snowflake objects:
 NETWORK RULE (EGRESS, HOST_PORT)  ─┐
 NETWORK RULE (EGRESS, HOST_PORT)  ─┼─▶  EXTERNAL ACCESS INTEGRATION  ─▶  app.yml: external_access_integrations
                                    │
-SECRET (TYPE = PASSWORD)  ─────────────────────────────────────────────▶  app.yml: secrets  →  /secrets/pg/...
+SECRET (TYPE = PASSWORD)  ─────────────────────────────────────────────▶  app.yml: secrets  →  /secrets/PG/...
 ```
 
 > **Ingress vs egress.** In [part 1](01-snowflake-postgres.md) you allowed traffic *into* Postgres
 > (`POSTGRES_INGRESS`). Here you allow traffic *out of* the app (`EGRESS`). A connection from the app to
 > Postgres needs both: the app may leave through the EAI, and Postgres lets it in through its network policy.
 
-The statements are sections 4–6 of [`snowflake/setup.sql`](../snowflake/setup.sql).
+The statements are sections 4–7 of [`snowflake/setup.sql`](../snowflake/setup.sql).
 
 ## 2.1 Egress network rules
 
@@ -45,8 +45,12 @@ CREATE NETWORK RULE IF NOT EXISTS OSM_EGRESS_RULE
 ```
 
 - `HOST_PORT` rules name hosts, not IPs — right for services whose IPs change.
-- Use the exact Postgres host from part 1. A wildcard such as `*.postgres.snowflake.app:5432` also works
-  but allows every Postgres instance, not just yours.
+- Use the exact Postgres host from part 1. If the rule names a different host, the app fails with
+  `getaddrinfo ENOTFOUND <host>` (App Runtime does not even resolve hosts the integration does not allow).
+- **Recreated the instance?** Its host changed, and `CREATE ... IF NOT EXISTS` keeps the old rule. Update it:
+  `ALTER NETWORK RULE PG_EGRESS_RULE SET VALUE_LIST = ('<new-host>:5432');`
+- A wildcard such as `*.postgres.snowflake.app:5432` survives a recreated instance, but allows every
+  Postgres instance on Snowflake, not just yours.
 - The two extra Overpass hosts are public mirrors the app falls back to when the main server is busy
   (it often is). Leave them out if your organization prefers one host.
 - If you only want to use the offline Menlo Park sample, `OSM_EGRESS_RULE` is optional.
@@ -60,13 +64,17 @@ CREATE SECRET IF NOT EXISTS PG_APP_CREDENTIALS
   PASSWORD = '<application password from part 1>';
 ```
 
-App Runtime mounts a secret as files, never as an environment variable. With the mount name `pg` in
+App Runtime mounts a secret as files, never as an environment variable. With the mount name `PG` in
 `app.yml`, the app reads:
 
 ```
-/secrets/pg/username
-/secrets/pg/password
+/secrets/PG/username
+/secrets/PG/password
 ```
+
+The mount name must be upper-case letters, digits and underscores (`pg` is rejected with
+`Invalid secret name 'pg' in app.yaml`). To update the password later:
+`ALTER SECRET PG_APP_CREDENTIALS SET PASSWORD = '...';`
 
 ([`src/server/db.ts`](../src/server/db.ts) reads the password each time it opens a connection, so a
 rotated secret is picked up without redeploying.) The password never appears in `app.yml`, in the code, or in Git.
@@ -82,7 +90,10 @@ CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS POSTGIS_PLAYGROUND_EAI
 
 Password secrets do not need to be listed in the integration (only OAuth secrets do).
 
-If you deploy with a role other than ACCOUNTADMIN, give it access:
+If you deploy with a role other than ACCOUNTADMIN, give it access (section 7 of `setup.sql`). The deploy role is
+the role of your **Snowflake CLI connection** (`snow sql -q "SELECT CURRENT_ROLE()"`), which can differ from the role
+you use in Snowsight. Without these grants the deploy fails with
+`Secret '...PG_APP_CREDENTIALS' does not exist or not authorized. Your primary role ... must have at least one privilege`.
 
 ```sql
 GRANT USAGE ON INTEGRATION POSTGIS_PLAYGROUND_EAI TO ROLE <deploy_role>;
@@ -98,7 +109,7 @@ external_access_integrations:
   - POSTGIS_PLAYGROUND_EAI
 
 secrets:
-  - name: pg                                                   # → /secrets/pg/
+  - name: PG                                                   # → /secrets/PG/
     secret: POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_APP_CREDENTIALS
 
 environment_variables:
@@ -109,6 +120,9 @@ environment_variables:
   - name: OSM_USER_AGENT
     value: "PostGIS-Playground/1.0 (you@example.com)"         # identify yourself to OpenStreetMap
 ```
+
+Never add `PGUSER` / `PGPASSWORD` here: environment variables are visible in the service definition.
+The password comes only from the secret.
 
 Next: [3. Deploy](03-deploy.md).
 
@@ -126,6 +140,7 @@ After deploying, the top-right corner of the app shows the connection state:
 
 | Error | Cause |
 |---|---|
+| `getaddrinfo ENOTFOUND <host>` | `PG_EGRESS_RULE` does not name this host (typical after recreating the instance). `DESCRIBE NETWORK RULE PG_EGRESS_RULE;` and `ALTER` it. |
 | timeout / `ETIMEDOUT` / `ECONNREFUSED` | Either the EAI does not allow `<host>:5432` (egress), or the Postgres network policy does not include App Runtime's IP ranges (ingress). Check both — the ranges can change; re-run `SYSTEM$GET_SNOWFLAKE_EGRESS_IP_RANGES()`. |
 | `password authentication failed for user "application"` | The secret's password is wrong or was reset. `ALTER SECRET PG_APP_CREDENTIALS SET PASSWORD = '...';` |
 | `PGHOST is not set` | `environment_variables` missing in `app.yml`. |
