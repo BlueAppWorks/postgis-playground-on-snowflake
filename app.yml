@@ -37,7 +37,7 @@ environment_variables:
     value: "<instance-host>.postgres.snowflake.app"
   - name: PGDATABASE
     value: "postgis_playground"
-  - name: OSM_USER_AGENT
+  - name: OSM_USER_AGENT            # how the app names itself to OpenStreetMap's servers (their policy asks for a contact)
     value: "PostGIS-Playground/1.0 (<your contact email or URL>)"
   - name: NEXT_TELEMETRY_DISABLED
     value: "1"

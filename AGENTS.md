@@ -16,7 +16,9 @@ Two project skills cover the common requests — use them:
 
 - `database`, `query_warehouse`
 - `PGHOST` — the Snowflake Postgres instance host (`SHOW POSTGRES INSTANCES` shows it)
-- `OSM_USER_AGENT` — a contact (email or URL) for OpenStreetMap's usage policy
+- `OSM_USER_AGENT` — how the app names itself to OpenStreetMap's free servers (their usage policy asks for an app
+  name and a contact). Explain this to the user, then offer `PostGIS-Playground/1.0 (<email>)` or, without an email,
+  `PostGIS-Playground/1.0 (+https://github.com/BlueAppWorks/postgis-playground-on-snowflake)`
 
 These Snowflake objects must already exist (created by `snowflake/setup.sql`, explained in `docs/00-*.md` to `docs/02-*.md`):
 

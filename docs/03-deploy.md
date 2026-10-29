@@ -25,7 +25,7 @@ Replace the `<...>` values:
 | `database` | `SNOWFLAKE_APPS` or `USER$` | where the Application Service is created |
 | `query_warehouse` | `COMPUTE_WH` | required by App Runtime |
 | `PGHOST` | `abc123xyz.your-account.us-west-2.aws.postgres.snowflake.app` | the instance `host` |
-| `OSM_USER_AGENT` | `PostGIS-Playground/1.0 (you@example.com)` | OpenStreetMap asks clients to identify themselves |
+| `OSM_USER_AGENT` | `PostGIS-Playground/1.0 (you@example.com)`, or without an email `PostGIS-Playground/1.0 (+https://github.com/BlueAppWorks/postgis-playground-on-snowflake)` | the "User-Agent" the app sends to OpenStreetMap's free geocoding and map-data servers (Lesson 2). Their usage policy asks for an app name and a contact, so the operators can reach you instead of blocking the app. It goes only to those servers |
 
 Everything else is already set — leave it as it is:
 

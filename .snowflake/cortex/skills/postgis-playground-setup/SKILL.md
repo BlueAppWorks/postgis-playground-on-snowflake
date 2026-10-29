@@ -220,7 +220,12 @@ Edit **only** the `<...>` placeholders:
 - `database`: ask — `USER$` (personal database; fine for trying it) or a shared apps database.
 - `query_warehouse`: the warehouse from Phase 0.
 - `PGHOST`: the instance host.
-- `OSM_USER_AGENT`: `PostGIS-Playground/1.0 (<user's email or URL>)` — ask the user.
+- `OSM_USER_AGENT`: ask the user, and explain it in one or two sentences first — most users do not know the term:
+  "The app names itself to OpenStreetMap's free geocoding and map-data servers (Lesson 2), as their usage
+  policy requires, with a contact so the operators can reach you instead of blocking the app. It is sent only
+  to those servers and is not shown anywhere." Offer the two forms and let the user pick:
+  - with an email: `PostGIS-Playground/1.0 (<user's email>)`
+  - without one: `PostGIS-Playground/1.0 (+https://github.com/BlueAppWorks/postgis-playground-on-snowflake)`
 
 Leave everything else unchanged. In particular do not rename the secret mount `PG`, do not add `PORT`,
 `HOSTNAME`, `PGUSER` or `PGPASSWORD`, and do not change `install` / `build` / `run`.
