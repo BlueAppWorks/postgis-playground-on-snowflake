@@ -1,6 +1,6 @@
 ---
 name: postgis-playground-setup
-description: Set up and deploy the PostGIS Playground learning app (postgis-playground-on-snowflake) on Snowflake App Runtime — creates a dedicated Snowflake Postgres instance, its network policy (POSTGRES_INGRESS), PostGIS/pgRouting/H3, the egress network rules, password secret and external access integration, fills in app.yml, and runs snow app deploy. Use when the user asks to "deploy this app", "deploy PostGIS Playground", "clone and deploy postgis-playground-on-snowflake", "set up the GIS learning app", or hits errors between the app and Postgres. Use this instead of the generic snowflake-apps skill for this repository.
+description: Set up and deploy the PostGIS Playground learning app (postgis-playground-on-snowflake) on Snowflake App Runtime — creates a dedicated Snowflake Postgres instance, its network policy (POSTGRES_INGRESS), PostGIS/pgRouting/H3, the egress network rules, password secret and external access integration, fills in app.yml, and runs snow app deploy. Use when the user asks to "deploy this app", "deploy PostGIS Playground", "clone and deploy postgis-playground-on-snowflake", "set up the GIS learning app", "update / redeploy after pulling the latest version", or hits errors between the app and Postgres. Use this instead of the generic snowflake-apps skill for this repository.
 tools:
   - snowflake_sql_execute
   - bash
@@ -39,6 +39,19 @@ Reference: `docs/00-before-you-start.md` (checklist), `docs/01-*.md`, `docs/02-*
 - Postgres setup runs **from the user's machine** (Phase 4, `scripts/postgres-setup.mjs` — it also creates the
   `postgis_playground` database). Do not write a stored procedure or notebook for it: the admin password would
   be passed as an argument and kept in the query history, and the setup needs no Snowflake-side code.
+
+## Already deployed? Updating to a newer version
+
+If `POSTGIS_PLAYGROUND_PG` and `POSTGIS_PLAYGROUND_EAI` already exist (the user deployed an earlier version and
+pulled a newer one), do not start from Phase 1. New versions can need new values in existing objects, and
+`IF NOT EXISTS` keeps the old ones. So:
+1. `git pull` (or confirm the user did), then Phase 0.
+2. Compare each rule with the SQL in Phases 1 and 3 of **this file** and `ALTER` the differences:
+   `DESCRIBE NETWORK RULE POSTGIS_PLAYGROUND_ADMIN.CONFIG.OSM_EGRESS_RULE;` (and `PG_EGRESS_RULE`, `PG_INGRESS_RULE`).
+   Run section 7 of `snowflake/setup.sql` again if the deploy role is not ACCOUNTADMIN (GRANTs are idempotent).
+3. Phase 4 with `PG_APP_PASSWORD` only (the check) — or with both passwords; the script is idempotent.
+   Wait for `Ready to deploy`.
+4. Phase 5 only if `app.yml` lost its values (e.g. the user re-cloned), then Phase 6.
 
 ## Phase 0 — Check the environment
 
@@ -175,6 +188,8 @@ snow app open --print-only
 Verify with the user in the browser: the top-right chip shows **`● Empty database`** (yellow = connected).
 A red chip names the cause (database not set up, wrong password, host not allowed, no route); the app log
 has the full error.
+The map should show a light-gray street basemap. A plain beige map means `tiles.openfreemap.org:443` is not
+in `OSM_EGRESS_RULE` (see the runtime table).
 Then **Quick start** — it runs Lesson 0 and loads the sample region; the chip turns green.
 
 ### Deploy errors

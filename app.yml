@@ -19,7 +19,8 @@ icon: src/app/icon.svg
 
 auto_suspend_secs: 3600              # suspend after an hour without traffic
 
-# Outbound access: Snowflake Postgres (5432) and the OpenStreetMap APIs. Created by snowflake/setup.sql.
+# Outbound access: Snowflake Postgres (5432), the OpenStreetMap APIs and the basemap (tiles.openfreemap.org,
+# proxied at /api/basemap). Created by snowflake/setup.sql.
 external_access_integrations:
   - POSTGIS_PLAYGROUND_EAI
 

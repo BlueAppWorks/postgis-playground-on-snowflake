@@ -20,11 +20,16 @@ Two project skills cover the common requests — use them:
 
 These Snowflake objects must already exist (created by `snowflake/setup.sql`, explained in `docs/00-*.md` to `docs/02-*.md`):
 
-- External access integration `POSTGIS_PLAYGROUND_EAI` (egress to the Postgres host:5432 and the OpenStreetMap APIs)
+- External access integration `POSTGIS_PLAYGROUND_EAI` (egress to the Postgres host:5432, the OpenStreetMap APIs,
+  and `tiles.openfreemap.org` — the app proxies the basemap at `/api/basemap`, so browsers never fetch it directly)
 - Password secret `POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_APP_CREDENTIALS` (Postgres role `application`)
 - The Postgres instance's network policy must allow Snowflake's egress IP ranges (`SYSTEM$GET_SNOWFLAKE_EGRESS_IP_RANGES()`)
 
-Run the checks in `docs/00-before-you-start.md` §0.6 before the first deploy.
+Run the checks in `docs/00-before-you-start.md` §0.6 before the first deploy, and deploy only after
+`scripts/postgres-setup.mjs` prints `Ready to deploy`.
+
+Updating an existing deployment after `git pull`: existing network rules keep their old values
+(`IF NOT EXISTS`) — follow "Already deployed?" in the setup skill before redeploying.
 
 Never write the Postgres password into `app.yml` (no `PGUSER` / `PGPASSWORD` environment variables), source files,
 or `.env*` files that are committed. Snowflake CLI older than 3.26: use `snowflake.yml.legacy-cli`, do not edit `app.yml`.

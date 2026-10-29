@@ -79,6 +79,10 @@ This repository ships two skills for **Cortex Code (CoCo Desktop / CLI)** in
 3. Ask: **"Set up and deploy this app with the postgis-playground-setup skill."**
 4. Optional: **"Change the sample region to my city: …"**
 
+Already deployed an earlier version? `git pull`, then ask: **"Update my deployment to the latest version with the
+postgis-playground-setup skill."** New versions can need new values in existing Snowflake objects (for example
+an extra host in a network rule); the skill checks them before redeploying.
+
 CoCo asks before it creates anything that costs money, and never writes passwords into files.
 
 ## Get started by hand
