@@ -210,9 +210,12 @@ export class MapController {
           resolve();
         }
       };
+      let styleLoaded = useFallback;
+      this.map.once("style.load", () => (styleLoaded = true));
       const fallback = () => {
-        if (done || this.usingFallback) return;
-        // The basemap could not be loaded (offline, blocked by policy, ...). Draw the map from PostGIS instead.
+        // Only when the basemap style itself cannot be loaded (offline, egress rule missing, ...).
+        // A failed font, sprite or tile after that leaves the basemap in place.
+        if (done || styleLoaded || this.usingFallback) return;
         this.usingFallback = true;
         this.map.setStyle(FALLBACK_STYLE);
         this.map.once("style.load", () => {
@@ -224,8 +227,11 @@ export class MapController {
         finish();
         if (useFallback) this.enablePgTiles();
       });
-      this.map.on("error", () => fallback());
-      setTimeout(fallback, 8000);
+      this.map.on("error", (e) => {
+        console.warn("Map:", e.error?.message ?? e);
+        fallback();
+      });
+      setTimeout(fallback, 15000);
     });
 
     this.map.on("click", (e) => this.onClick(e.lngLat));
@@ -486,6 +492,12 @@ export class MapController {
 
   zoom() {
     return Math.round(this.map.getZoom());
+  }
+
+  // Tiles fetched before Quick start / Reset are empty or stale; fetch them again.
+  reloadPgTiles() {
+    const src = this.map.getSource("pgtiles") as maplibregl.VectorTileSource | undefined;
+    src?.setTiles([`${window.location.origin}/api/tiles/{z}/{x}/{y}?v=${++this.seq}`]);
   }
 
   async enablePgTiles() {

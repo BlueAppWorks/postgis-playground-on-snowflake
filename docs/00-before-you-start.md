@@ -13,8 +13,8 @@ Parts [1](01-snowflake-postgres.md) and [2](02-external-access.md) explain each 
 | | Requirement | Check |
 |---|---|---|
 | Account | A paid Snowflake account in a region with Snowflake Postgres and App Runtime (not a trial) | `SHOW POSTGRES INSTANCES;` runs without error |
-| Admin role | `ACCOUNTADMIN` (or a role with `CREATE POSTGRES INSTANCE`, `CREATE NETWORK POLICY`, `CREATE INTEGRATION`) for the one-time setup | `SELECT CURRENT_ROLE();` |
-| Deploy role | The role your Snowflake CLI connection uses. It may differ from the role you use in Snowsight | `snow sql -q "SELECT CURRENT_ROLE()"` |
+| Admin role | `ACCOUNTADMIN`, for the one-time setup (Part A below). Not yours? Ask your admin — see 0.3 | `SELECT CURRENT_AVAILABLE_ROLES();` |
+| Deploy role | The role your Snowflake CLI connection uses. It **owns the app**, so always deploy with the same role | `snow sql -q "SELECT CURRENT_ROLE()"` |
 | Warehouse | Any warehouse (App Runtime requires one, even though this app queries Postgres) | `SHOW WAREHOUSES;` |
 | Apps database | Where the app is created: your personal `USER$` database, or a shared one | `SHOW SCHEMAS IN DATABASE <db>;` |
 | Snowflake CLI | **3.26 or later** (reads `app.yml` version 2) | `snow --version`; `snow app deploy --help` lists `--target` |
@@ -54,7 +54,26 @@ Use `npm.cmd` instead of `npm`, or allow local scripts once with
 
 A connection from the app to Postgres needs **both** directions: the EAI lets it out, the network policy lets it in.
 
-## 0.3 Order of work
+## 0.3 Order of work: two parts, two roles
+
+The setup is split by role. **Part A** (steps 1–6) creates account-level objects and needs `ACCOUNTADMIN`,
+once. **Part B** (step 7) is the deploy, done every time by the deploy role — the role that will own the app.
+They can be the same person or two people.
+
+- If you deploy as ACCOUNTADMIN too (fine on a personal account), skip step 6.
+- If you deploy with another role (better: e.g. `SYSADMIN` or a dedicated `APP_PUBLISHER`), step 6 is required.
+- Pick the deploy role before the first deploy and keep it: a redeploy needs ownership of the app, so a
+  different role fails with `Object does not exist, or operation cannot be performed`.
+
+**No ACCOUNTADMIN?** Send your admin this request (fill in the `<...>`):
+
+> Please do Part A of https://github.com/BlueAppWorks/postgis-playground-on-snowflake (docs/00-before-you-start.md,
+> steps 1–6, or `snowflake/setup.sql` sections 1–7) for:
+> deploy role `<your CLI role>`, apps database `<database>`, warehouse `<warehouse>`.
+> Please send me the Postgres host when done. I do not need the Postgres passwords.
+
+The admin keeps both passwords and runs step 4 themselves. With Cortex Code, the admin can open the repository
+and ask: "Do Part A of the postgis-playground-setup skill for deploy role `<role>`."
 
 | Step | What | Where | Guide |
 |---|---|---|---|
@@ -64,7 +83,7 @@ A connection from the app to Postgres needs **both** directions: the EAI lets it
 | 4 | Database + extensions inside Postgres, and a check of the `application` login — **go on only when it prints `Ready to deploy`** | your machine: `node scripts/postgres-setup.mjs` | [1.3](01-snowflake-postgres.md#13-prepare-the-database-in-postgres) |
 | 5 | Egress rules, secret, integration | Snowsight | [2](02-external-access.md) |
 | 6 | Grants for the deploy role (skip if it is ACCOUNTADMIN) | Snowsight | [2.3](02-external-access.md#23-the-external-access-integration) |
-| 7 | Fill in `app.yml`, `snow app deploy` | your machine | [3](03-deploy.md) |
+| 7 | **Part B:** fill in `app.yml`, run the preflight (0.6) as the deploy role, `snow app deploy` | your machine | [3](03-deploy.md) |
 
 Use a **dedicated** instance for this app. Changing the network policy or resetting the passwords of an
 instance that another app uses breaks that app.
@@ -95,7 +114,23 @@ blocks every connection.
 
 ## 0.6 Check before you deploy
 
-Run these and compare with the table in 0.4. Five minutes here saves an hour of redeploying.
+First, as the **deploy role**, through the same CLI connection that deploys:
+
+```bash
+snow sql -f snowflake/preflight.sql -D apps_db=<APPS_DATABASE> -D apps_schema=PUBLIC -D warehouse=<WAREHOUSE>
+```
+
+It switches secondary roles off (the app runs with the deploy role's own grants only) and prints four checks.
+Deploy when all four start with `OK`:
+
+| Check | Not OK means |
+|---|---|
+| `EAI_CHECK` | the deploy role has no USAGE on `POSTGIS_PLAYGROUND_EAI` (step 6) |
+| `SECRET_CHECK` | no USAGE on `POSTGIS_PLAYGROUND_ADMIN` / `.CONFIG`, or no READ, USAGE on the secret (step 6) |
+| `OWNER_CHECK` | `WRONG ROLE`: the app exists and another role owns it — deploy with that role |
+| `BIND_CHECK` | the account has not given `BIND SERVICE ENDPOINT` to `PUBLIC`; an admin grants it to the deploy role |
+
+Then, as ACCOUNTADMIN, compare the values with the table in 0.4. Five minutes here saves an hour of redeploying.
 
 ```sql
 SHOW POSTGRES INSTANCES LIKE 'POSTGIS_PLAYGROUND_PG';                       -- state READY, note "host"

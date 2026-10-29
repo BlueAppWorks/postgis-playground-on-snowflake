@@ -56,7 +56,8 @@ Browser (MapLibre GL)  ──HTTPS──▶  Next.js on Snowflake App Runtime  �
 
 ## Before you start
 
-You need a paid Snowflake account with Snowflake Postgres and App Runtime, ACCOUNTADMIN (once, for the setup),
+You need a paid Snowflake account with Snowflake Postgres and App Runtime, ACCOUNTADMIN once for the setup
+(or an admin who does that part for you — docs/00 §0.3 has the request to send),
 Snowflake CLI 3.26+, and Node.js 22+. [docs/00-before-you-start.md](docs/00-before-you-start.md) is the checklist:
 which Snowflake objects to create in which order, what to write down, and how to verify them before deploying.
 

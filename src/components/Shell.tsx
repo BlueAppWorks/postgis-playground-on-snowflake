@@ -70,8 +70,9 @@ export function Shell({ basemap, allowConsole, region, children }: { basemap: st
 
   const dataChanged = useCallback(() => {
     setDataVersion((v) => v + 1);
+    map?.reloadPgTiles();
     refreshStatus();
-  }, [refreshStatus]);
+  }, [refreshStatus, map]);
 
   useEffect(() => {
     if (status?.ready) refreshPlaces();

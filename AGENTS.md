@@ -26,10 +26,16 @@ These Snowflake objects must already exist (created by `snowflake/setup.sql`, ex
 - The Postgres instance's network policy must allow Snowflake's egress IP ranges (`SYSTEM$GET_SNOWFLAKE_EGRESS_IP_RANGES()`)
 
 Run the checks in `docs/00-before-you-start.md` §0.6 before the first deploy, and deploy only after
-`scripts/postgres-setup.mjs` prints `Ready to deploy`.
+`scripts/postgres-setup.mjs` prints `Ready to deploy` and `snowflake/preflight.sql` (run as the deploy role) shows
+only `OK`.
+
+Roles: the one-time setup needs ACCOUNTADMIN; the deploy role (the CLI connection's role) owns the app and must be
+the same on every deploy. Never grant anything to `PUBLIC`, and never write `CREATE APPLICATION SERVICE` by hand —
+fix the cause and run `snow app deploy` again.
 
 Updating an existing deployment after `git pull`: existing network rules keep their old values
-(`IF NOT EXISTS`) — follow "Already deployed?" in the setup skill before redeploying.
+(`IF NOT EXISTS`) — follow "Already deployed?" in the setup skill before redeploying. Also run `git status`:
+files left from an earlier attempt are deployed too and can override the new code; only `app.yml` should differ.
 
 Never write the Postgres password into `app.yml` (no `PGUSER` / `PGPASSWORD` environment variables), source files,
 or `.env*` files that are committed. Snowflake CLI older than 3.26: use `snowflake.yml.legacy-cli`, do not edit `app.yml`.

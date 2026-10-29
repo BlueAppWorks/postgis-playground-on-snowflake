@@ -41,7 +41,11 @@ Everything else is already set — leave it as it is:
 
 From this folder:
 
+First check, as the deploy role (the CLI connection's role, which will own the app), that it can use
+everything the app needs — [0.6](00-before-you-start.md#06-check-before-you-deploy):
+
 ```bash
+snow sql -f snowflake/preflight.sql -D apps_db=<APPS_DATABASE> -D apps_schema=PUBLIC -D warehouse=<WAREHOUSE>
 snow app deploy
 ```
 
@@ -76,6 +80,7 @@ or in SQL: `CALL SYSTEM$GET_APPLICATION_SERVICE_LOGS('<APPS_DATABASE>.PUBLIC.POS
 | `Invalid secret name 'pg' in app.yaml` | the mount name must be upper case: `name: PG` |
 | `Environment variable 'PORT' is reserved` | remove `PORT` / `HOSTNAME` from `environment_variables` |
 | `Secret '...' does not exist or not authorized. Your primary role X ...` | grant role X access ([2.3](02-external-access.md#23-the-external-access-integration)) |
+| `Object does not exist, or operation cannot be performed` on a redeploy | the app is owned by another role (e.g. a first deploy as ACCOUNTADMIN). Deploy with the owner role — the preflight's `OWNER_CHECK` names it |
 | App log: `sh: next: not found`, exit status 127 | `run` must be `node .next/standalone/server.js` and `next.config.ts` must keep `output: "standalone"` |
 | App log: `ENOENT ... sql/...` or `data/seed/sample.json`; lessons do not load | the `postbuild` step did not run — keep `"postbuild"` in `package.json` |
 | App log: `getaddrinfo ENOTFOUND <host>` | `PG_EGRESS_RULE` names another host ([2.1](02-external-access.md#21-egress-network-rules)) |
@@ -109,6 +114,9 @@ GRANT USAGE ON DATABASE <APPS_DATABASE> TO ROLE <learners>;
 GRANT USAGE ON SCHEMA <APPS_DATABASE>.PUBLIC TO ROLE <learners>;
 GRANT USAGE ON APPLICATION SERVICE <APPS_DATABASE>.PUBLIC.POSTGIS_PLAYGROUND TO ROLE <learners>;
 ```
+
+Grant to named roles, not to `PUBLIC`: the app includes a SQL editor, so everyone with access can run SQL as
+the `application` role.
 
 Everyone who opens the app shares the same Postgres database, so one learner's **Reset** affects all.
 For a workshop, give each learner their own deployment (their own `USER$` database and Postgres database),

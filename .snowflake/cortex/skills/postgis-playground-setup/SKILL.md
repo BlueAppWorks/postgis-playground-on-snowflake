@@ -23,6 +23,24 @@ the tables at the end map each error to its fix.
 Reference: `docs/00-before-you-start.md` (checklist), `docs/01-*.md`, `docs/02-*.md`, `docs/03-deploy.md`,
 `snowflake/setup.sql`.
 
+## Two roles, two parts
+
+| Part | Who | Role | What |
+|---|---|---|---|
+| **A. Setup** (once) | someone with ACCOUNTADMIN | `ACCOUNTADMIN` | Phases 1–4: ingress, instance, egress, secret, integration, grants to the deploy role, database |
+| **B. Deploy** (every time) | the app's owner | the **deploy role** = the role of the Snowflake CLI connection | Phases 5–6, after the preflight check |
+
+- Part A needs ACCOUNTADMIN; do not try to get by with another role (CREATE POSTGRES INSTANCE, network
+  policies and integrations are account-level). If the user does not have it, Part A is a request to their
+  admin (Phase 0.2), not something to work around.
+- The deploy role **owns the app**. A redeploy needs OWNERSHIP of the existing service, so the same role must
+  deploy every time. Never deploy once as ACCOUNTADMIN "to get it working" and later as another role — the later
+  deploy fails with `Object does not exist, or operation cannot be performed`.
+- The deploy role may be ACCOUNTADMIN on a personal trial account (then no grants are needed), but a dedicated
+  role (e.g. `SYSADMIN` or an `APP_PUBLISHER` role) is better. Decide once, in Phase 0, and keep it.
+- The SQL tool and the Snowflake CLI can run as different roles. Everything in Part B is checked through
+  `snow sql`, which uses the same connection as `snow app deploy`.
+
 ## Ground rules
 
 - **Passwords**: never print them in chat, never write them to any file (`app.yml`, `.env*`, SQL files, scripts).
@@ -36,6 +54,13 @@ Reference: `docs/00-before-you-start.md` (checklist), `docs/01-*.md`, `docs/02-*
 - `IF NOT EXISTS` keeps old values. After every `CREATE ... IF NOT EXISTS` of a rule or secret whose value you
   know, `DESCRIBE` it and `ALTER` it if it differs (a host from an earlier attempt is the classic case).
 - Ask before anything that costs money or affects others: creating an instance, resetting passwords, deploying.
+- Write every object name fully qualified (`POSTGIS_PLAYGROUND_ADMIN.CONFIG.<name>`). The SQL tool may run each
+  call in a new session, so `USE SCHEMA` / `USE ROLE` from an earlier call cannot be relied on.
+- Never grant anything to `PUBLIC` (not the integration, not the app). Share the app with named roles only (docs/03).
+- Never write `CREATE APPLICATION SERVICE` / `SPECIFICATION` by hand — `snow app deploy` builds it from `app.yml`.
+  If a deploy fails, fix the cause from the tables below and run `snow app deploy` again.
+- Do not `CREATE OR REPLACE` the objects in Phases 1–3 on a re-run: it drops their grants and detaches the
+  network policy. `IF NOT EXISTS`, then `DESCRIBE` and `ALTER`.
 - Postgres setup runs **from the user's machine** (Phase 4, `scripts/postgres-setup.mjs` — it also creates the
   `postgis_playground` database). Do not write a stored procedure or notebook for it: the admin password would
   be passed as an argument and kept in the query history, and the setup needs no Snowflake-side code.
@@ -45,23 +70,38 @@ Reference: `docs/00-before-you-start.md` (checklist), `docs/01-*.md`, `docs/02-*
 If `POSTGIS_PLAYGROUND_PG` and `POSTGIS_PLAYGROUND_EAI` already exist (the user deployed an earlier version and
 pulled a newer one), do not start from Phase 1. New versions can need new values in existing objects, and
 `IF NOT EXISTS` keeps the old ones. So:
-1. `git pull` (or confirm the user did), then Phase 0.
+1. `git pull` (or confirm the user did), then `git status`. Only `app.yml` should differ from the repository.
+   Untracked or changed files anywhere else — typically code an agent added during an earlier attempt, e.g. an
+   extra route under `src/app/api/` — are deployed too and can override the new version (`git pull` does not
+   remove them). Show the list to the user and, with their consent, remove them: `git clean -n` lists untracked
+   files, `git clean -f <path>` removes one, `git checkout -- <file>` restores a changed one. Keep `app.yml`.
+   Then Phase 0.
 2. Compare each rule with the SQL in Phases 1 and 3 of **this file** and `ALTER` the differences:
    `DESCRIBE NETWORK RULE POSTGIS_PLAYGROUND_ADMIN.CONFIG.OSM_EGRESS_RULE;` (and `PG_EGRESS_RULE`, `PG_INGRESS_RULE`).
-   Run section 7 of `snowflake/setup.sql` again if the deploy role is not ACCOUNTADMIN (GRANTs are idempotent).
+   Run the grants of Phase 3 again if the deploy role is not ACCOUNTADMIN (GRANTs are idempotent).
 3. Phase 4 with `PG_APP_PASSWORD` only (the check) — or with both passwords; the script is idempotent.
    Wait for `Ready to deploy`.
-4. Phase 5 only if `app.yml` lost its values (e.g. the user re-cloned), then Phase 6.
+4. Fill in `app.yml` only if it lost its values (e.g. the user re-cloned). **Always run the preflight** (end of
+   Phase 5), then Phase 6.
 
 ## Phase 0 — Check the environment
 
 1. Open the cloned folder itself as the workspace (the one containing `app.yml`). If it is not, `cd` into it
    for every command.
-2. Snowflake role for setup: `SELECT CURRENT_ROLE(), CURRENT_WAREHOUSE();` — the setup needs ACCOUNTADMIN or
-   CREATE POSTGRES INSTANCE / CREATE NETWORK POLICY / CREATE INTEGRATION. Many statements below
-   (e.g. `SYSTEM$GET_SNOWFLAKE_EGRESS_IP_RANGES()`) need a warehouse: `USE WAREHOUSE <wh>;` (ask which; `SHOW WAREHOUSES;`).
-3. **Deploy role** — the role of the Snowflake CLI connection, which can differ from the SQL tool's role:
-   `snow sql -q "SELECT CURRENT_ROLE()"`. Note it for Phase 5.
+2. **Can this user do Part A?**
+   `USE WAREHOUSE <wh>; SELECT ARRAY_CONTAINS('ACCOUNTADMIN'::VARIANT, PARSE_JSON(CURRENT_AVAILABLE_ROLES())) AS has_accountadmin;`
+   (needs a warehouse — `SHOW WAREHOUSES;`, ask which)
+   - `TRUE` → run Part A with `USE ROLE ACCOUNTADMIN;` in the same call as each statement.
+   - `FALSE` → check whether an admin already did Part A: `SHOW POSTGRES INSTANCES LIKE 'POSTGIS_PLAYGROUND_PG';`
+     and the preflight (Phase 5). If it passes, skip to Phase 5. If not, **stop**: tell the user that an
+     ACCOUNTADMIN must do Part A once, and give them the request in `docs/00-before-you-start.md` §0.3 filled in
+     with their deploy role, apps database and warehouse (the admin runs Phase 4 from their own machine). The admin can also open this repository in
+     Cortex Code and ask "Do Part A of the postgis-playground-setup skill for deploy role <role>".
+     Do not look for other roles or privileges to work around it.
+3. **Deploy role** — the role of the Snowflake CLI connection: `snow sql -q "SELECT CURRENT_ROLE()"`.
+   If `POSTGIS_PLAYGROUND` already exists (`SHOW APPLICATION SERVICES LIKE 'POSTGIS_PLAYGROUND' IN ACCOUNT;`),
+   the deploy role must be its `owner`; if it is not, ask the user whether to switch the CLI connection to the
+   owner role (simplest) — not to drop the app. Tell the user the deploy role in one sentence and keep it.
 4. **CLI version**: `snow --version` and `snow app deploy --help`. If `--target` is not listed, the CLI is older
    than 3.26 and cannot read `app.yml` version 2. Offer: upgrade (`pip install --upgrade snowflake-cli`,
    `pipx upgrade snowflake-cli`, or the installer from github.com/snowflakedb/snowflake-cli/releases), **or**
@@ -74,6 +114,7 @@ pulled a newer one), do not start from Phase 1. New versions can need new values
 ## Phase 1 — Ingress: who may connect to Postgres
 
 ```sql
+USE ROLE ACCOUNTADMIN;
 USE WAREHOUSE <wh>;
 SELECT value:ipv4_prefix::STRING AS cidr, value:expires::STRING AS expires
 FROM TABLE(FLATTEN(INPUT => PARSE_JSON(SYSTEM$GET_SNOWFLAKE_EGRESS_IP_RANGES())));
@@ -91,6 +132,7 @@ DESCRIBE NETWORK RULE POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_INGRESS_RULE;   -- ALTE
 ## Phase 2 — Create the instance
 
 ```sql
+USE ROLE ACCOUNTADMIN;
 CREATE POSTGRES INSTANCE IF NOT EXISTS POSTGIS_PLAYGROUND_PG
   COMPUTE_FAMILY = 'BURST_S' STORAGE_SIZE_GB = 10
   AUTHENTICATION_AUTHORITY = POSTGRES POSTGRES_VERSION = 18
@@ -106,29 +148,43 @@ Poll `SHOW POSTGRES INSTANCES LIKE 'POSTGIS_PLAYGROUND_PG';` until `state` is `R
 ## Phase 3 — Egress, secret, integration, grants
 
 ```sql
-USE SCHEMA POSTGIS_PLAYGROUND_ADMIN.CONFIG;
-CREATE NETWORK RULE IF NOT EXISTS PG_EGRESS_RULE TYPE = HOST_PORT MODE = EGRESS
+USE ROLE ACCOUNTADMIN;
+CREATE NETWORK RULE IF NOT EXISTS POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_EGRESS_RULE TYPE = HOST_PORT MODE = EGRESS
   VALUE_LIST = ('<host>:5432');
-CREATE NETWORK RULE IF NOT EXISTS OSM_EGRESS_RULE TYPE = HOST_PORT MODE = EGRESS
+CREATE NETWORK RULE IF NOT EXISTS POSTGIS_PLAYGROUND_ADMIN.CONFIG.OSM_EGRESS_RULE TYPE = HOST_PORT MODE = EGRESS
   VALUE_LIST = ('nominatim.openstreetmap.org:443', 'overpass-api.de:443',
                 'overpass.private.coffee:443', 'overpass.kumi.systems:443',
                 'tiles.openfreemap.org:443');   -- basemap, proxied by the app
-CREATE SECRET IF NOT EXISTS PG_APP_CREDENTIALS TYPE = PASSWORD
+CREATE SECRET IF NOT EXISTS POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_APP_CREDENTIALS TYPE = PASSWORD
   USERNAME = 'application' PASSWORD = '<application password>';
 CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS POSTGIS_PLAYGROUND_EAI
   ALLOWED_NETWORK_RULES = (POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_EGRESS_RULE,
                            POSTGIS_PLAYGROUND_ADMIN.CONFIG.OSM_EGRESS_RULE)
   ENABLED = TRUE;
-DESCRIBE NETWORK RULE PG_EGRESS_RULE;   -- must be exactly '<host>:5432'; if not:
--- ALTER NETWORK RULE PG_EGRESS_RULE SET VALUE_LIST = ('<host>:5432');
-DESCRIBE NETWORK RULE OSM_EGRESS_RULE;  -- must include tiles.openfreemap.org:443; if not, ALTER with all five hosts
+DESCRIBE NETWORK RULE POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_EGRESS_RULE;   -- exactly '<host>:5432'; else ALTER ... SET VALUE_LIST
+DESCRIBE NETWORK RULE POSTGIS_PLAYGROUND_ADMIN.CONFIG.OSM_EGRESS_RULE;  -- includes tiles.openfreemap.org:443; else ALTER with all five
 ```
 
-If the secret already existed: `ALTER SECRET PG_APP_CREDENTIALS SET PASSWORD = '<application password>';`
+If the secret already existed: `ALTER SECRET POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_APP_CREDENTIALS SET PASSWORD = '<application password>';`
 
-If the deploy role (Phase 0.3) is not ACCOUNTADMIN, run section 7 of `snowflake/setup.sql` for it
-(USAGE on the EAI, database and schema; READ, USAGE on the secret; USAGE + CREATE APPLICATION SERVICE /
-ARTIFACT REPOSITORY / STAGE on the apps schema; USAGE on the warehouse).
+**Grants to the deploy role** — required unless the deploy role is ACCOUNTADMIN (the same as section 7 of
+`snowflake/setup.sql`; all idempotent):
+
+```sql
+USE ROLE ACCOUNTADMIN;
+GRANT USAGE ON INTEGRATION POSTGIS_PLAYGROUND_EAI TO ROLE <deploy_role>;
+GRANT USAGE ON DATABASE POSTGIS_PLAYGROUND_ADMIN TO ROLE <deploy_role>;
+GRANT USAGE ON SCHEMA POSTGIS_PLAYGROUND_ADMIN.CONFIG TO ROLE <deploy_role>;
+GRANT READ, USAGE ON SECRET POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_APP_CREDENTIALS TO ROLE <deploy_role>;
+-- the apps database: skip these three if the deploy role owns it (e.g. USER$)
+GRANT USAGE ON DATABASE <APPS_DATABASE> TO ROLE <deploy_role>;
+GRANT USAGE, CREATE APPLICATION SERVICE, CREATE ARTIFACT REPOSITORY, CREATE STAGE
+  ON SCHEMA <APPS_DATABASE>.PUBLIC TO ROLE <deploy_role>;
+GRANT USAGE ON WAREHOUSE <WAREHOUSE> TO ROLE <deploy_role>;
+```
+
+`ALLOWED_AUTHENTICATION_SECRETS` on the integration is not needed: the app reads the secret through the
+`secrets:` mount, which needs only the grants above.
 
 Explain in one sentence: ingress (Phase 1) lets traffic *into* Postgres; egress (this phase) lets the app *out*.
 
@@ -169,8 +225,17 @@ Edit **only** the `<...>` placeholders:
 Leave everything else unchanged. In particular do not rename the secret mount `PG`, do not add `PORT`,
 `HOSTNAME`, `PGUSER` or `PGPASSWORD`, and do not change `install` / `build` / `run`.
 
-Before deploying, run the checks in `docs/00-before-you-start.md` §0.6 and fix any mismatch, and make sure
-Phase 4 ended with `Ready to deploy`.
+**Gate: the preflight, as the deploy role.** Run it through the CLI connection that will deploy:
+
+```bash
+snow sql -f snowflake/preflight.sql -D apps_db=<APPS_DATABASE> -D apps_schema=PUBLIC -D warehouse=<WAREHOUSE>
+```
+
+Deploy only when `EAI_CHECK`, `SECRET_CHECK`, `OWNER_CHECK` and `BIND_CHECK` all start with `OK`, and Phase 4
+ended with `Ready to deploy` (if an admin did Part A, ask the user to confirm the admin saw it — the deployer
+does not need the Postgres passwords). Otherwise fix what the check names (grants → Phase 3 as ACCOUNTADMIN, or the
+admin request in Phase 0.2; `WRONG ROLE` → Phase 0.3) and run it again. Also run the value checks in
+`docs/00-before-you-start.md` §0.6 (hosts and rules).
 
 ## Phase 6 — Deploy and verify
 
@@ -200,6 +265,9 @@ Then **Quick start** — it runs Lesson 0 and loads the sample region; the chip 
 | `Invalid secret name 'pg'` | someone renamed the mount → restore `name: PG` |
 | `Environment variable 'PORT' is reserved` | remove `PORT` / `HOSTNAME` from `environment_variables` |
 | `Secret ... does not exist or not authorized. Your primary role X` | grants for role X (Phase 3) |
+| `Object does not exist, or operation cannot be performed` on a redeploy | the app is owned by another role → deploy with the owner role (Phase 0.3); the preflight shows `WRONG ROLE` |
+| `Network rule ... does not exist or not authorized` while creating the integration | an unqualified name resolved in another schema → use `POSTGIS_PLAYGROUND_ADMIN.CONFIG.<rule>` |
+| `UnicodeDecodeError: 'cp932'` from `snow sql -f` | a non-ASCII character in the SQL file (Windows reads it in the system encoding) → keep SQL files ASCII |
 | `CIDR '0.0.0.0/0' overlaps ...` | do not use `0.0.0.0/0` |
 | `No active warehouse selected` | `USE WAREHOUSE <wh>;` |
 
@@ -215,6 +283,7 @@ Then **Quick start** — it runs Lesson 0 and loads the sample region; the chip 
 | `ENOENT ... sql/` or `data/seed/` | the `postbuild` script was removed from `package.json` → restore |
 | `must be owner of extension` (Lessons 8, 10) | Phase 4 was not run as `snowflake_admin` |
 | `database "postgis_playground" does not exist` | Phase 4 was skipped → run `scripts/postgres-setup.mjs` |
+| Basemap without labels, or no basemap, while `OSM_EGRESS_RULE` is right | a leftover file overrides the proxy (e.g. `src/app/api/basemap/[z]/`) → `git status`, remove files not in the repository, redeploy |
 | Map has no basemap; log `Basemap not reachable` | `tiles.openfreemap.org:443` missing from `OSM_EGRESS_RULE` → `ALTER` it (Phase 3). The app already proxies the basemap; do not add a tile proxy or change `controller.ts` |
 
 ## Finish
