@@ -196,7 +196,7 @@ function StatusChip({ status, regionName, onQuickstart, onReset }: { status: Sta
   if (!status.connected)
     return (
       <div className="status error" title={status.error}>
-        ● Postgres not reachable — see docs/02-external-access.md
+        ● {status.hint ?? "Postgres not reachable — see docs/02-external-access.md"}
       </div>
     );
   return (

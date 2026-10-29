@@ -13,6 +13,7 @@ export type Status = {
   roads?: number;
   graph?: boolean;
   error?: string;
+  hint?: string;
 };
 
 export type ShellApi = {

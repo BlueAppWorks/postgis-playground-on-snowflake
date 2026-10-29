@@ -36,8 +36,9 @@ Reference: `docs/00-before-you-start.md` (checklist), `docs/01-*.md`, `docs/02-*
 - `IF NOT EXISTS` keeps old values. After every `CREATE ... IF NOT EXISTS` of a rule or secret whose value you
   know, `DESCRIBE` it and `ALTER` it if it differs (a host from an earlier attempt is the classic case).
 - Ask before anything that costs money or affects others: creating an instance, resetting passwords, deploying.
-- Postgres setup runs **from the user's machine** (Phase 4). Stored procedures, notebooks and Snowflake-side
-  Python cannot reach the instance — do not try them.
+- Postgres setup runs **from the user's machine** (Phase 4, `scripts/postgres-setup.mjs` — it also creates the
+  `postgis_playground` database). Do not write a stored procedure or notebook for it: the admin password would
+  be passed as an argument and kept in the query history, and the setup needs no Snowflake-side code.
 
 ## Phase 0 — Check the environment
 
@@ -97,7 +98,8 @@ CREATE NETWORK RULE IF NOT EXISTS PG_EGRESS_RULE TYPE = HOST_PORT MODE = EGRESS
   VALUE_LIST = ('<host>:5432');
 CREATE NETWORK RULE IF NOT EXISTS OSM_EGRESS_RULE TYPE = HOST_PORT MODE = EGRESS
   VALUE_LIST = ('nominatim.openstreetmap.org:443', 'overpass-api.de:443',
-                'overpass.private.coffee:443', 'overpass.kumi.systems:443');
+                'overpass.private.coffee:443', 'overpass.kumi.systems:443',
+                'tiles.openfreemap.org:443');   -- basemap, proxied by the app
 CREATE SECRET IF NOT EXISTS PG_APP_CREDENTIALS TYPE = PASSWORD
   USERNAME = 'application' PASSWORD = '<application password>';
 CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS POSTGIS_PLAYGROUND_EAI
@@ -106,6 +108,7 @@ CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS POSTGIS_PLAYGROUND_EAI
   ENABLED = TRUE;
 DESCRIBE NETWORK RULE PG_EGRESS_RULE;   -- must be exactly '<host>:5432'; if not:
 -- ALTER NETWORK RULE PG_EGRESS_RULE SET VALUE_LIST = ('<host>:5432');
+DESCRIBE NETWORK RULE OSM_EGRESS_RULE;  -- must include tiles.openfreemap.org:443; if not, ALTER with all five hosts
 ```
 
 If the secret already existed: `ALTER SECRET PG_APP_CREDENTIALS SET PASSWORD = '<application password>';`
@@ -120,15 +123,25 @@ Explain in one sentence: ingress (Phase 1) lets traffic *into* Postgres; egress 
 
 ```bash
 npm install            # Windows PowerShell: npm.cmd install
-PGHOST=<host> PG_ADMIN_PASSWORD='<snowflake_admin password>' node scripts/postgres-setup.mjs
+PGHOST=<host> PG_ADMIN_PASSWORD='<snowflake_admin password>' PG_APP_PASSWORD='<application password>' node scripts/postgres-setup.mjs
 ```
 
-PowerShell: `$env:PGHOST='<host>'; $env:PG_ADMIN_PASSWORD='<pw>'; node scripts/postgres-setup.mjs; Remove-Item Env:PG_ADMIN_PASSWORD`
+PowerShell: `$env:PGHOST='<host>'; $env:PG_ADMIN_PASSWORD='<pw>'; $env:PG_APP_PASSWORD='<pw>'; node scripts/postgres-setup.mjs; Remove-Item Env:PG_ADMIN_PASSWORD, Env:PG_APP_PASSWORD`
 
 It creates database `postgis_playground`, installs `postgis`, `pgrouting`, `h3`, `h3_postgis` (with `postgis_raster`),
-and grants CONNECT + CREATE to `application`. It is idempotent.
+grants CONNECT + CREATE to `application`, then logs in **as `application`** exactly as the app will. It is idempotent.
+
+**Gate: do not go on to Phase 5 or 6 until the output ends with `Ready to deploy`.** A deployed app cannot
+fix a wrong password or a missing database; deploying anyway only moves the same error into the app logs,
+where it is slower to find. If the script fails, fix the cause and run it again:
 - Timeout → the user's IP is not in `PG_INGRESS_RULE`, or a VPN changed it.
-- `authentication failed ... snowflake_admin` → wrong admin password (wrong instance?).
+- `authentication failed ... snowflake_admin` → wrong admin password (wrong instance?). Ask the user; with
+  their consent, `RESET ACCESS FOR 'snowflake_admin'`.
+- `authentication failed ... application` → wrong application password. With consent, `RESET ACCESS FOR
+  'application'`, then `ALTER SECRET PG_APP_CREDENTIALS SET PASSWORD = ...` with the new one.
+- The `application` password that passed here is the one that must be in `PG_APP_CREDENTIALS`. If you are not
+  sure the secret holds it, `ALTER SECRET` it now.
+- Only the check, without the admin password: leave out `PG_ADMIN_PASSWORD`.
 
 The local `node_modules/` is not uploaded on deploy (`ignore:` in `app.yml`); no need to delete it.
 
@@ -143,7 +156,8 @@ Edit **only** the `<...>` placeholders:
 Leave everything else unchanged. In particular do not rename the secret mount `PG`, do not add `PORT`,
 `HOSTNAME`, `PGUSER` or `PGPASSWORD`, and do not change `install` / `build` / `run`.
 
-Before deploying, run the checks in `docs/00-before-you-start.md` §0.6 and fix any mismatch.
+Before deploying, run the checks in `docs/00-before-you-start.md` §0.6 and fix any mismatch, and make sure
+Phase 4 ended with `Ready to deploy`.
 
 ## Phase 6 — Deploy and verify
 
@@ -159,6 +173,8 @@ snow app open --print-only
   The app logs `Postgres not reachable: <reason>` there.
 
 Verify with the user in the browser: the top-right chip shows **`● Empty database`** (yellow = connected).
+A red chip names the cause (database not set up, wrong password, host not allowed, no route); the app log
+has the full error.
 Then **Quick start** — it runs Lesson 0 and loads the sample region; the chip turns green.
 
 ### Deploy errors
@@ -183,7 +199,8 @@ Then **Quick start** — it runs Lesson 0 and loads the sample region; the chip 
 | `sh: next: not found`, exit 127 | `run` / `next.config.ts` were changed → restore them from Git |
 | `ENOENT ... sql/` or `data/seed/` | the `postbuild` script was removed from `package.json` → restore |
 | `must be owner of extension` (Lessons 8, 10) | Phase 4 was not run as `snowflake_admin` |
-| Map has no background | basemap blocked by the browser's network; the app falls back to PostGIS tiles |
+| `database "postgis_playground" does not exist` | Phase 4 was skipped → run `scripts/postgres-setup.mjs` |
+| Map has no basemap; log `Basemap not reachable` | `tiles.openfreemap.org:443` missing from `OSM_EGRESS_RULE` → `ALTER` it (Phase 3). The app already proxies the basemap; do not add a tile proxy or change `controller.ts` |
 
 ## Finish
 

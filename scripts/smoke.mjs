@@ -50,5 +50,10 @@ const tile = await fetch(`${base}/api/tiles/${z}/${x}/${y}`);
 console.log(`${tile.status === 200 ? "ok  " : "FAIL"} tile ${z}/${x}/${y} → HTTP ${tile.status}, ${(await tile.arrayBuffer()).byteLength} bytes, ${Date.now() - t} ms`);
 if (tile.status !== 200) failed++;
 
+// the basemap style, fetched through the app's proxy (needs tiles.openfreemap.org in OSM_EGRESS_RULE)
+const style = await fetch(`${base}/api/basemap/styles/positron`);
+console.log(`${style.ok ? "ok  " : "FAIL"} basemap style via /api/basemap → HTTP ${style.status}`);
+if (!style.ok) failed++;
+
 console.log(failed ? `\n${failed} failure(s)` : "\nall passed");
 process.exit(failed ? 1 : 0);

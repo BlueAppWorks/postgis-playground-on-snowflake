@@ -45,7 +45,7 @@ Use `npm.cmd` instead of `npm`, or allow local scripts once with
                           │ 5432
 ┌──────────── where the app may connect OUT ────────────┐
 │ NETWORK RULE  PG_EGRESS_RULE   (HOST_PORT: <host>:5432)│
-│ NETWORK RULE  OSM_EGRESS_RULE  (OpenStreetMap APIs)    │
+│ NETWORK RULE  OSM_EGRESS_RULE  (OSM APIs, basemap)     │
 │        ▼                                               │
 │ EXTERNAL ACCESS INTEGRATION  POSTGIS_PLAYGROUND_EAI    │──▶ app.yml external_access_integrations
 └────────────────────────────────────────────────────────┘
@@ -61,7 +61,7 @@ A connection from the app to Postgres needs **both** directions: the EAI lets it
 | 1 | Look up App Runtime's egress CIDRs | Snowsight (needs a warehouse) | [1.1](01-snowflake-postgres.md#11-why-a-network-policy-comes-first) |
 | 2 | Ingress rule + network policy | Snowsight | 1.1 |
 | 3 | **A new, dedicated** Postgres instance — copy the host and both passwords (shown once) | Snowsight | [1.2](01-snowflake-postgres.md#12-create-the-instance) |
-| 4 | Database + extensions inside Postgres | your machine: `node scripts/postgres-setup.mjs` | [1.3](01-snowflake-postgres.md#13-prepare-the-database-in-postgres) |
+| 4 | Database + extensions inside Postgres, and a check of the `application` login — **go on only when it prints `Ready to deploy`** | your machine: `node scripts/postgres-setup.mjs` | [1.3](01-snowflake-postgres.md#13-prepare-the-database-in-postgres) |
 | 5 | Egress rules, secret, integration | Snowsight | [2](02-external-access.md) |
 | 6 | Grants for the deploy role (skip if it is ACCOUNTADMIN) | Snowsight | [2.3](02-external-access.md#23-the-external-access-integration) |
 | 7 | Fill in `app.yml`, `snow app deploy` | your machine | [3](03-deploy.md) |
@@ -102,6 +102,7 @@ SHOW POSTGRES INSTANCES LIKE 'POSTGIS_PLAYGROUND_PG';                       -- s
 DESCRIBE POSTGRES INSTANCE POSTGIS_PLAYGROUND_PG;                          -- network_policy = POSTGIS_PLAYGROUND_PG_POLICY
 DESCRIBE NETWORK RULE POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_INGRESS_RULE;    -- today's egress CIDRs
 DESCRIBE NETWORK RULE POSTGIS_PLAYGROUND_ADMIN.CONFIG.PG_EGRESS_RULE;     -- exactly <host>:5432
+DESCRIBE NETWORK RULE POSTGIS_PLAYGROUND_ADMIN.CONFIG.OSM_EGRESS_RULE;    -- includes tiles.openfreemap.org:443
 DESCRIBE INTEGRATION POSTGIS_PLAYGROUND_EAI;                              -- both egress rules, enabled
 SHOW SECRETS LIKE 'PG_APP_CREDENTIALS' IN SCHEMA POSTGIS_PLAYGROUND_ADMIN.CONFIG;
 SHOW GRANTS TO ROLE <deploy_role>;                                        -- USAGE on the EAI, READ on the secret
@@ -113,5 +114,7 @@ SHOW GRANTS TO ROLE <deploy_role>;                                        -- USA
 | `PG_INGRESS_RULE` lacks the current CIDRs | connection timeout |
 | Secret holds an old password | `password authentication failed for user "application"` |
 | Deploy role lacks grants | `Secret ... does not exist or not authorized` during deploy |
+| `OSM_EGRESS_RULE` lacks `tiles.openfreemap.org` | no basemap (the map falls back to PostGIS tiles); log `Basemap not reachable` |
+| `scripts/postgres-setup.mjs` not run | `database "postgis_playground" does not exist` |
 
 Next: [1. Prepare Snowflake Postgres](01-snowflake-postgres.md).

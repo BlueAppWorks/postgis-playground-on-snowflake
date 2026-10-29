@@ -29,6 +29,11 @@ const FALLBACK_STYLE: StyleSpecification = {
   layers: [{ id: "background", type: "background", paint: { "background-color": "#eeede8" } }],
 };
 
+// The browser may not reach the basemap host (strict proxy, CSP), so OpenFreeMap is loaded through the app
+// (api/basemap). Other basemaps set with BASEMAP_STYLE_URL are loaded directly.
+const OPENFREEMAP = "https://tiles.openfreemap.org/";
+const viaApp = (url: string) => ({ url: url.startsWith(OPENFREEMAP) ? `${window.location.origin}/api/basemap/${url.slice(OPENFREEMAP.length)}` : url });
+
 const POLY: ExpressionSpecification = ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false];
 const LINE: ExpressionSpecification = ["match", ["geometry-type"], ["LineString", "MultiLineString"], true, false];
 const POINT: ExpressionSpecification = ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false];
@@ -191,6 +196,7 @@ export class MapController {
       style: useFallback ? FALLBACK_STYLE : styleUrl,
       center,
       zoom: 13,
+      transformRequest: viaApp,
       attributionControl: { compact: false, customAttribution: "© OpenStreetMap contributors" },
     });
     this.map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");

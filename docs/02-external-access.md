@@ -41,7 +41,8 @@ CREATE NETWORK RULE IF NOT EXISTS OSM_EGRESS_RULE
   VALUE_LIST = ('nominatim.openstreetmap.org:443',
                 'overpass-api.de:443',
                 'overpass.private.coffee:443',
-                'overpass.kumi.systems:443');
+                'overpass.kumi.systems:443',
+                'tiles.openfreemap.org:443');
 ```
 
 - `HOST_PORT` rules name hosts, not IPs — right for services whose IPs change.
@@ -53,7 +54,12 @@ CREATE NETWORK RULE IF NOT EXISTS OSM_EGRESS_RULE
   Postgres instance on Snowflake, not just yours.
 - The two extra Overpass hosts are public mirrors the app falls back to when the main server is busy
   (it often is). Leave them out if your organization prefers one host.
-- If you only want to use the offline Menlo Park sample, `OSM_EGRESS_RULE` is optional.
+- `tiles.openfreemap.org` serves the basemap. The browser loads it through the app (`/api/basemap/...`),
+  so it works even where the learners' network or browser policy blocks outside map servers.
+- **Created `OSM_EGRESS_RULE` before `tiles.openfreemap.org` was in this list?** `IF NOT EXISTS` keeps the
+  old list — `ALTER NETWORK RULE OSM_EGRESS_RULE SET VALUE_LIST = (...)` with all five hosts.
+- Without `OSM_EGRESS_RULE` the offline Menlo Park sample still works; Lesson 2's geocoding and downloads do
+  not, and the map draws its background from PostGIS tiles instead of the basemap.
 
 ## 2.2 The password as a secret
 
@@ -145,4 +151,4 @@ After deploying, the top-right corner of the app shows the connection state:
 | `password authentication failed for user "application"` | The secret's password is wrong or was reset. `ALTER SECRET PG_APP_CREDENTIALS SET PASSWORD = '...';` |
 | `PGHOST is not set` | `environment_variables` missing in `app.yml`. |
 | Lesson 2 says Nominatim / Overpass failed | `OSM_EGRESS_RULE` missing from the EAI, or the public Overpass servers are busy. Use **"Use the Menlo Park sample instead"**, or try again in a few minutes. The SQL Trace shows each HTTP call and its status. |
-| The map has no background | The browser could not load the basemap from `tiles.openfreemap.org` (e.g. blocked by a policy). The app switches to drawing roads and parks from PostGIS tiles automatically; set `BASEMAP_STYLE_URL=none` to do that from the start. |
+| The map has no basemap (plain beige, roads drawn from PostGIS after Quick start) | The app could not fetch `tiles.openfreemap.org`: add it to `OSM_EGRESS_RULE` (see 2.1; `ALTER` an existing rule). The app log shows `Basemap not reachable: ...`, and `/api/basemap/styles/positron` returns an error. Set `BASEMAP_STYLE_URL=none` to use the PostGIS-only map on purpose. |

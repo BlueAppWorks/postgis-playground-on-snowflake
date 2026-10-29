@@ -69,8 +69,12 @@ CREATE NETWORK RULE IF NOT EXISTS OSM_EGRESS_RULE
     'nominatim.openstreetmap.org:443',    -- geocoding (Lesson 2)
     'overpass-api.de:443',                -- OpenStreetMap data (Lesson 2)
     'overpass.private.coffee:443',        -- Overpass mirrors, used when the main server is busy
-    'overpass.kumi.systems:443'
+    'overpass.kumi.systems:443',
+    'tiles.openfreemap.org:443'           -- the basemap, loaded through the app (api/basemap)
   );
+-- Created this rule before tiles.openfreemap.org was added? IF NOT EXISTS keeps the old list:
+-- ALTER NETWORK RULE OSM_EGRESS_RULE SET VALUE_LIST = ('nominatim.openstreetmap.org:443', 'overpass-api.de:443',
+--   'overpass.private.coffee:443', 'overpass.kumi.systems:443', 'tiles.openfreemap.org:443');
 
 -- ── 5. The Postgres password, stored as a Snowflake secret ─────────────────
 -- The app runs as the "application" role, not as the admin.
