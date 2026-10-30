@@ -69,7 +69,7 @@ This repository ships two skills for **Cortex Code (CoCo Desktop / CLI)** in
 | Skill | What it does |
 |---|---|
 | `postgis-playground-setup` | Creates (or reuses) the Snowflake Postgres instance, sets up its network policy, installs PostGIS / pgRouting / H3, creates the secret and external access integration, fills in `app.yml`, and deploys. |
-| `postgis-playground-region` | Switches the sample region from Menlo Park to your city: edits `config/region.json`, downloads the OpenStreetMap data, and redeploys. |
+| `postgis-playground-region` | *Optional.* Switches the sample region from Menlo Park to your city: edits `config/region.json`, downloads the OpenStreetMap data, and redeploys. |
 
 1. Clone this repository:
    ```bash
@@ -78,7 +78,20 @@ This repository ships two skills for **Cortex Code (CoCo Desktop / CLI)** in
 2. Open **the cloned `postgis-playground-on-snowflake` folder itself** in CoCo Desktop — not its parent folder.
    Project skills are found only in the workspace folder. (CoCo CLI: start it inside the folder.)
 3. Ask: **"Set up and deploy this app with the postgis-playground-setup skill."**
-4. Optional: **"Change the sample region to my city: …"**
+4. Optional: **"Change the sample region to my city: …"** — see below.
+
+### Do I need the region skill?
+
+Not for setup or deployment, and not for the map: the basemap covers the whole world wherever the sample region is.
+The region is only the starting point — what **Quick start** loads (places and the OpenStreetMap buildings,
+roads, … around them), where the map opens, and the first point in Lesson 1. It is Menlo Park by default.
+Learners can type their own places in Lesson 2 at any time, so Menlo Park works for practising anywhere.
+
+Use it when a workshop or demo should start in a particular city the moment someone presses **Quick start** —
+for example Tokyo Marunouchi. Ask CoCo: **"Change the sample region to Marunouchi, Tokyo."** It asks for the
+places, downloads the data, has you check the geocoding results, and redeploys.
+[`config/examples/`](config/examples) has a filled-in Tokyo Marunouchi example. After the redeploy, press
+**Reset → Quick start** in the app to switch to the new region.
 
 Already deployed an earlier version? `git pull`, then ask: **"Update my deployment to the latest version with the
 postgis-playground-setup skill."** New versions can need new values in existing Snowflake objects (for example

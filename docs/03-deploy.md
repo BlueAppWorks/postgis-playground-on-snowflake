@@ -144,7 +144,9 @@ node scripts/smoke.mjs http://localhost:3000 --with-apis # also calls Nominatim 
 
 ## 3.7 Costs and cleanup
 
-- App Runtime suspends the app after an hour without traffic (`auto_suspend_secs: 3600`).
+- App Runtime suspends the app after 30 minutes without traffic (`auto_suspend_secs: 1800`), and the next visit
+  starts it again (`auto_resume: true`; the first page takes a little longer). Change these in `app.yml`, not with
+  `ALTER APPLICATION SERVICE` — the next `snow app deploy` resets anything not in `app.yml`.
 - The Postgres instance is billed while it runs: `ALTER POSTGRES INSTANCE POSTGIS_PLAYGROUND_PG SUSPEND;`
 - Remove everything:
 

@@ -17,7 +17,8 @@ label: PostGIS Playground
 description: Learn PostGIS step by step on Snowflake Postgres — every map change is a SQL query you can read.
 icon: src/app/icon.svg
 
-auto_suspend_secs: 3600              # suspend after an hour without traffic
+auto_resume: true                    # the next visit starts a suspended app again
+auto_suspend_secs: 1800              # suspend after 30 minutes without traffic (minimum 300)
 
 # Outbound access: Snowflake Postgres (5432), the OpenStreetMap APIs and the basemap (tiles.openfreemap.org,
 # proxied at /api/basemap). Created by snowflake/setup.sql.
