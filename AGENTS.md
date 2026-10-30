@@ -39,6 +39,10 @@ Updating an existing deployment after `git pull`: existing network rules keep th
 (`IF NOT EXISTS`) — follow "Already deployed?" in the setup skill before redeploying. Also run `git status`:
 files left from an earlier attempt are deployed too and can override the new code; only `app.yml` should differ.
 
+Another Postgres (Amazon RDS, Aurora, Cloud SQL, …) instead of Snowflake Postgres: follow README → "Other Postgres".
+Skip creating the instance, its network policy and `PG_INGRESS_RULE`; keep the EAI, egress rule and secret with that
+host; run `scripts/postgres-setup.mjs` with `PG_ADMIN_USER`. Do not change `src/server/*` for it.
+
 Never write the Postgres password into `app.yml` (no `PGUSER` / `PGPASSWORD` environment variables), source files,
 or `.env*` files that are committed. Snowflake CLI older than 3.26: use `snowflake.yml.legacy-cli`, do not edit `app.yml`.
 

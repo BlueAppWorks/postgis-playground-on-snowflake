@@ -124,6 +124,49 @@ snow app deploy       # then press Reset → Quick start in the app
 The map opens there, Lesson 1 starts at your anchor point, and every lesson uses your neighborhood.
 See [`config/examples/`](config/examples) for a Tokyo example. Learners can also type their own places in Lesson 2 at any time.
 
+## Other Postgres (Amazon RDS, Aurora, Cloud SQL, …)
+
+The app itself is plain Postgres: it connects with a host, a user and a password over TLS, and uses no
+Snowflake Postgres feature. It works with any Postgres that has the extensions below. Snowflake Postgres has all of
+them; elsewhere, check your service's extension list.
+
+| Lessons | Needs | Notes |
+|---|---|---|
+| 0–7, 9, 11 | **PostGIS 3.1+** | `CREATE EXTENSION postgis` by an admin (Lesson 0 also runs it, but the app role usually may not) |
+| 8 Routes | **pgRouting 3.x** (`pgr_dijkstra`, `pgr_drivingDistance`) | |
+| 10 Grids | PostGIS 3.1+ (`ST_HexagonGrid`, `ST_SquareGrid`); **h3 and h3_postgis 4.x** for the H3 steps | `h3_postgis` pulls in `postgis_raster` (`CASCADE`) |
+| 12 Tiles, and the map's PostGIS layer | PostGIS 3.0+ built with protobuf (`ST_AsMVT`, `ST_TileEnvelope`) | managed services include it |
+| 13 Snowflake (bonus) | Snowflake Postgres | mirroring to Snowflake; elsewhere the Snowflake SQL is only for reading |
+
+Without pgRouting or H3, only the lessons named above fail, with a message saying which extension is missing.
+At the time of writing: Amazon RDS for PostgreSQL and Aurora PostgreSQL offer PostGIS, pgRouting and h3-pg
+(RDS 15.4 / 14.9 / 13.12 and later, Aurora 15.5 / 14.10 and later); Cloud SQL offers PostGIS and pgRouting but not H3.
+
+The database must also give the app a login role with `CONNECT` and `CREATE` on its database (Lesson 0 creates the
+`geo` schema), and accept connections from wherever the app runs.
+
+### What is specific to Snowflake Postgres
+
+Only the setup around the database. When the app runs on App Runtime with another Postgres:
+
+| Here (Snowflake Postgres) | With another Postgres |
+|---|---|
+| `snowflake/setup.sql` creates the instance, its network policy and `PG_INGRESS_RULE` | skip those parts. Instead allow Snowflake's egress IP ranges (`SELECT SYSTEM$GET_SNOWFLAKE_EGRESS_IP_RANGES();`) in the database's own firewall — an RDS security group, Cloud SQL authorized networks — and make the database reachable from the internet |
+| `PG_EGRESS_RULE`, the external access integration, the `PG_APP_CREDENTIALS` secret | the same, with your database's host (and port, `host:port`) and its app user |
+| `scripts/postgres-setup.mjs` logs in as `snowflake_admin`; the `application` role is built in | set `PG_ADMIN_USER` (e.g. `postgres`); with `PG_APP_PASSWORD` set as well, the script creates the `application` role |
+| The server certificate is from a Snowflake CA, so it is not verified by default | the same default; to verify, set `PGSSL_CA` (e.g. the Amazon RDS CA bundle) |
+| Postgres listens on 5432 | set `PGPORT` in `app.yml` if yours differs |
+
+```bash
+PGHOST=<your host> PG_ADMIN_USER=postgres PG_ADMIN_PASSWORD='<admin password>' PG_APP_PASSWORD='<new app password>' \
+  node scripts/postgres-setup.mjs     # creates the role, database and extensions, then prints "Ready to deploy"
+```
+
+With **Cortex Code**, say so at the start, for example: *"Set up and deploy this app with the postgis-playground-setup
+skill, but use my existing Amazon RDS database `<host>` instead of a Snowflake Postgres instance. Skip creating the
+instance and its network policy; I will allow Snowflake's egress IPs in the RDS security group. The admin user is
+`postgres`."*
+
 ## Run locally
 
 ```bash
