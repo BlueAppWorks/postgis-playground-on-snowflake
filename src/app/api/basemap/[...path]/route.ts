@@ -8,17 +8,22 @@ export const runtime = "nodejs";
 // MapLibre's transformRequest (components/map/controller.ts) rewrites https://tiles.openfreemap.org/... to here.
 const UPSTREAM = "https://tiles.openfreemap.org/";
 const PREFIX = "/api/basemap/";
-const ALLOWED = /^(styles|planet|fonts|sprites|natural_earth)(\/|$)/;
+// Any path on that one host: the style names its sources (planet, backup_planet, natural_earth, ...) and
+// OpenFreeMap renames them, so a list of names breaks the basemap without warning. The host is fixed,
+// so this cannot reach anything else; "." and ".." segments are refused.
+const ALLOWED = /^[A-Za-z0-9_-]+(\/|$)/;
 const UA = process.env.OSM_USER_AGENT ?? "PostGIS-Playground/1.0 (Snowflake App Runtime learning app)";
 
 export async function GET(req: NextRequest) {
   // Keep the path exactly as the browser encoded it (font stacks contain spaces and commas).
   const path = req.nextUrl.pathname.slice(PREFIX.length);
-  if (!ALLOWED.test(path) || path.split("/").some((s) => s === ".." || s === ".")) {
+  if (!ALLOWED.test(path) || path.split("/").some((s) => /^(\.|%2e){1,2}$/i.test(s))) {
+    console.error(`Basemap path refused: /${path}`);
     return new Response("Not a basemap path", { status: 400 });
   }
   try {
     const res = await fetch(UPSTREAM + path, { headers: { "User-Agent": UA } });
+    if (!res.ok) console.error(`Basemap upstream HTTP ${res.status}: ${path}`);
     // fetch has already decompressed the body, so Content-Encoding / Length are not passed on.
     const headers = new Headers({
       "Content-Type": res.headers.get("content-type") ?? "application/octet-stream",
