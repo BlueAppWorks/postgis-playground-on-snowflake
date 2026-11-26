@@ -54,6 +54,16 @@ if (tile.status !== 200) failed++;
 const style = await fetch(`${base}/api/basemap/styles/positron`);
 console.log(`${style.ok ? "ok  " : "FAIL"} basemap style via /api/basemap → HTTP ${style.status}`);
 if (!style.ok) failed++;
+// every source the style names (OpenFreeMap renames them, e.g. planet → backup_planet), through the same proxy
+if (style.ok) {
+  for (const [name, src] of Object.entries((await style.json()).sources ?? {})) {
+    const url = src.url ?? src.tiles?.[0]?.replace("{z}/{x}/{y}", "0/0/0");
+    if (!url?.startsWith("https://tiles.openfreemap.org/")) continue;
+    const r = await fetch(`${base}/api/basemap/${url.slice("https://tiles.openfreemap.org/".length)}`);
+    console.log(`${r.ok ? "ok  " : "FAIL"} basemap source ${name} via /api/basemap → HTTP ${r.status}`);
+    if (!r.ok) failed++;
+  }
+}
 
 console.log(failed ? `\n${failed} failure(s)` : "\nall passed");
 process.exit(failed ? 1 : 0);
